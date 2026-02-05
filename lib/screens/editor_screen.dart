@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   bool _showPreview = true;
   double _previewWidth = 400;
   bool _saving = false;
+  Timer? _autoSaveTimer;
+  String _saveStatus = 'Saved';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -36,6 +39,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -147,7 +151,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(filename ?? 'Untitled', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const Text('Editing Exam Content', style: TextStyle(fontSize: 10, color: Colors.grey)),
+              Row(
+                children: [
+                   const Text('Editing Exam Content', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                   if (_saveStatus != 'Saved') ...[
+                      const SizedBox(width: 8),
+                      Text('• $_saveStatus', style: TextStyle(fontSize: 10, color: _saveStatus.contains('Error') ? Colors.red : Colors.orange)),
+                   ]
+                ],
+              ),
             ],
           ),
           const Spacer(),
@@ -616,17 +628,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     
     final updatedQ = q.copyWith(QuestionID: newId);
     ref.read(questionsProvider.notifier).updateQuestion(_selectedIdx, updatedQ);
+    _triggerAutoSave();
   }
 
-  Future<void> _save() async {
-    setState(() => _saving = true);
+  void _triggerAutoSave() {
+    _autoSaveTimer?.cancel();
+    if (_saveStatus == 'Saved') {
+      setState(() => _saveStatus = 'Unsaved changes...');
+    }
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      _save(manual: false);
+    });
+  }
+
+  Future<void> _save({bool manual = true}) async {
+    setState(() {
+      _saving = true;
+      if (!manual) _saveStatus = 'Saving...';
+    });
     try {
       await ref.read(questionsProvider.notifier).save();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved!')));
+      if (manual) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved!')));
+      }
+      if (mounted) setState(() => _saveStatus = 'Saved');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (manual) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+      if (mounted) setState(() => _saveStatus = 'Error saving');
     } finally {
-      setState(() => _saving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
