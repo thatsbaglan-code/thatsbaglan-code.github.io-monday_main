@@ -21,6 +21,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   bool _showPreview = true;
   double _previewWidth = 400;
   bool _saving = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,11 +168,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     );
   }
 
-  Widget _buildSidebar(List<Question> questions) {
+  Widget _buildSidebar(List<Question> allQuestions) {
+    // Filter questions
+    final filteredQuestions = allQuestions.where((q) {
+      return q.QuestionID.toLowerCase().contains(_searchQuery);
+    }).toList();
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            controller: _searchController,
+            decoration: const InputDecoration(
+              labelText: 'Search ID',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
           child: ElevatedButton.icon(
             onPressed: _addNewQuestion,
             icon: const Icon(Icons.add),
@@ -164,18 +199,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         ),
         Expanded(
           child: ListView.separated(
-            itemCount: questions.length,
+            itemCount: filteredQuestions.length,
             separatorBuilder: (ctx, i) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final q = questions[index];
-              final isSelected = index == _selectedIdx;
+              final q = filteredQuestions[index];
+              // Find real index for selection highlighting
+              final realIndex = allQuestions.indexOf(q);
+              final isSelected = realIndex == _selectedIdx;
+              
               return ListTile(
                 selected: isSelected,
                 selectedTileColor: Colors.indigo.shade50,
                 title: Text('Question ${q.QuestionNumber}'),
                 subtitle: Text(q.QuestionID, style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
                 trailing: Text(q.QuestionType, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
-                onTap: () => setState(() => _selectedIdx = index),
+                onTap: () => setState(() => _selectedIdx = realIndex),
                 dense: true,
               );
             },
@@ -184,7 +222,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           color: Colors.grey.shade100,
-          child: Text('${questions.length} Questions', style: const TextStyle(fontSize: 10)),
+          child: Text('${filteredQuestions.length} / ${allQuestions.length} Questions', style: const TextStyle(fontSize: 10)),
         ),
       ],
     );
@@ -400,10 +438,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                               newSubs[idx] = sub.copyWith(options: newOpts);
                               _updateQ(q.copyWith(SubQuestions: newSubs));
                           },
-                        ))
+                        )),
+                        IconButton(
+                          icon: const Icon(Icons.delete, size: 16, color: Colors.grey),
+                          onPressed: () {
+                             final newSubs = [...subs];
+                             final newOpts = [...sub.options];
+                             newOpts.removeAt(oIdx);
+                             newSubs[idx] = sub.copyWith(options: newOpts);
+                             _updateQ(q.copyWith(SubQuestions: newSubs));
+                          },
+                        ),
                       ],
                     );
-                 }),
+                 }).toList(),
+                 TextButton.icon(
+                    onPressed: () {
+                       final newSubs = [...subs];
+                       final newOpts = [...sub.options, const SubQuestionOption()];
+                       newSubs[idx] = sub.copyWith(options: newOpts);
+                       _updateQ(q.copyWith(SubQuestions: newSubs));
+                    }, 
+                    icon: const Icon(Icons.add, size: 16), 
+                    label: const Text('Add Option')
+                 ),
               ],
             ),
           ),
