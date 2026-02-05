@@ -33,7 +33,7 @@ git push -u origin main
 1. Go to your repository on GitHub
 2. Settings → Pages
 3. Select "Deploy from a branch"
-4. Choose "main" branch and "/root" folder
+4. Choose "gh-pages" branch and "/root" folder (Note: This branch will be created automatically after the first successful build)
 5. Wait 1-2 minutes for deployment
 6. Your site: `https://<YOUR_USERNAME>.github.io/monday-flutter`
 

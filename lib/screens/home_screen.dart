@@ -31,8 +31,71 @@ class HomeScreen extends ConsumerWidget {
             ? _buildWelcome(context, ref)
             : _buildFileList(context, ref, fileListAsync, fs),
       ),
+      floatingActionButton: fs != null
+          ? FloatingActionButton.extended(
+              onPressed: () => _showNewFileDialog(context, ref, fs),
+              label: const Text('New File'),
+              icon: const Icon(Icons.add),
+            )
+          : null,
     );
   }
+
+  Future<void> _showNewFileDialog(BuildContext context, WidgetRef ref, IFileSystemService fs) async {
+    final controller = TextEditingController();
+    
+    await showDialog(
+      context: context, 
+      builder: (context) => AlertDialog(
+        title: const Text('Create New File'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Filename',
+            hintText: 'example.json',
+            suffixText: '.json',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text('Cancel')
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              var filename = controller.text.trim();
+              if (filename.isEmpty) return;
+              
+              if (!filename.toLowerCase().endsWith('.json')) {
+                filename += '.json';
+              }
+              
+              try {
+                // Create empty file
+                await fs.saveFile(filename, []);
+                
+                if (context.mounted) {
+                  Navigator.pop(context); // Close dialog
+                  
+                  // Refresh list and open file
+                  ref.invalidate(fileListProvider);
+                  ref.read(currentFilenameProvider.notifier).setFilename(filename);
+                  context.push('/editor');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error creating file: $e')),
+                  );
+                }
+              }
+            }, 
+            child: const Text('Create')
+          ),
+        ],
+      )
+    );
 
   Widget _buildWelcome(BuildContext context, WidgetRef ref) {
     return Column(
